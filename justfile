@@ -121,6 +121,7 @@ cuttlefish:
         echo "安装 deb 包"
         sudo dpkg -i ./cuttlefish-base_*_*64.deb || sudo apt-get install -f -y
         sudo dpkg -i ./cuttlefish-user_*_*64.deb || sudo apt-get install -f -y
+        rm -rf *.deb
     else
         echo "cvd-ebr 网络接口已存在"
     fi
@@ -137,7 +138,7 @@ cuttlefish:
     fi
 
 # 启动 cvd
-start:
+start: cuttlefish cvd gsi
     echo "启动 cvd"
     HOME=$PWD cvd/bin/cvd start --daemon
 
