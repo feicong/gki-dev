@@ -76,17 +76,10 @@ gsi:
         echo "$zipfile 不存在，正在下载..."
         wget -O "$zipfile" "$url"
     fi
-    # 获取所有 img 文件名
-    img_list=$(7z l "$zipfile" | awk '/\.img$/ {print $NF}')
-    for img in $img_list; do
-        if [ ! -f "{{CVD}}/$img" ]; then
-            echo "正在从 $zipfile 解压 $img 到 {{CVD}}/ ..."
-            7z e "$zipfile" "$img" -o{{CVD}}
-        else
-            echo "{{CVD}}/$img 已存在，跳过。"
-        fi
-    done
-    echo "所有 img 文件已准备好。"
+    # 解压zip文件
+    echo "正在解压 $zipfile 到 {{CVD}}/ ..."
+    unzip -n -o "$zipfile" -d {{CVD}} || { echo "解压失败，请检查是否安装了 unzip 命令"; exit 1; }
+    echo "所有文件已准备好。"
 
 # 检查并安装cuttlefish所需环境
 cuttlefish:
