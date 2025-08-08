@@ -8,7 +8,7 @@ default:
 doctor:
     #!/usr/bin/env bash
     set -e
-    cmds=(just wget 7z unzip dpkg apt-get ip getent usermod groupadd)
+    cmds=(tar wget 7z unzip dpkg apt-get ip getent usermod groupadd)
     missing=()
     for cmd in "${cmds[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
@@ -20,6 +20,35 @@ doctor:
     else
         echo "缺少如下命令，请手动安装：${missing[*]}"
         exit 1
+    fi
+
+# 下载CVD镜像
+cvd:
+    #!/usr/bin/env bash
+    set -e
+    mkdir -p bin
+    need_download=0
+    # 检查 bin/adb 和 bin/cvd
+    if [ ! -f "bin/adb" ] || [ ! -f "bin/cvd" ]; then
+        arch=$(uname -m)
+        if [[ "$arch" == "aarch64" ]]; then
+            tarfile="cvd-host_package_arm64.tar.gz"
+        elif [[ "$arch" == "x86_64" ]]; then
+            tarfile="cvd-host_package_x86_64.tar.gz"
+        else
+            echo "不支持的架构: $arch"; exit 1
+        fi
+        url="https://github.com/feicong/feicong-course/releases/download/android-course/$tarfile"
+        # 检查本地 tar.gz 文件
+        if [ ! -f "$tarfile" ]; then
+            echo "$tarfile 不存在，正在下载..."
+            wget -O "$tarfile" "$url"
+        fi
+
+        echo "正在解压 $tarfile ..."
+        tar -xzvf "$tarfile"
+    else
+        echo "cvd 已存在，无需下载。"
     fi
 
 # 下载安卓GSI镜像
