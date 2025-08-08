@@ -1,5 +1,9 @@
 # Copyright (c) 2025-2026 fei_cong(https://github.com/feicong/feicong-course)
 
+# 统一目录变量
+DEPS := "deps"
+CVD := "cvd"
+
 # 默认命令，列出所有可用命令
 default:
     @just --list
@@ -26,71 +30,63 @@ doctor:
 cvd:
     #!/usr/bin/env bash
     set -e
-    mkdir -p bin
-    need_download=0
-    # 检查 bin/adb 和 bin/cvd
-    if [ ! -f "bin/adb" ] || [ ! -f "bin/cvd" ]; then
+    mkdir -p {{DEPS}} {{CVD}}
+    # 检查 cvd 和 adb 是否存在
+    if [ ! -f "{{CVD}}/bin/adb" ] || [ ! -f "{{CVD}}/bin/cvd" ]; then
         arch=$(uname -m)
         if [[ "$arch" == "aarch64" ]]; then
-            tarfile="cvd-host_package_arm64.tar.gz"
+            tarfile="{{DEPS}}/cvd-host_package_arm64.tar.gz"
+            tarname="cvd-host_package_arm64.tar.gz"
         elif [[ "$arch" == "x86_64" ]]; then
-            tarfile="cvd-host_package_x86_64.tar.gz"
+            tarfile="{{DEPS}}/cvd-host_package_x86_64.tar.gz"
+            tarname="cvd-host_package_x86_64.tar.gz"
         else
             echo "不支持的架构: $arch"; exit 1
         fi
-        url="https://github.com/feicong/feicong-course/releases/download/android-course/$tarfile"
+        url="https://github.com/feicong/feicong-course/releases/download/android-course/$tarname"
         # 检查本地 tar.gz 文件
         if [ ! -f "$tarfile" ]; then
             echo "$tarfile 不存在，正在下载..."
             wget -O "$tarfile" "$url"
         fi
-
-        echo "正在解压 $tarfile ..."
-        tar -xzvf "$tarfile"
+        echo "正在解压 $tarfile 到 {{CVD}}/ ..."
+        tar -xzvf "$tarfile" -C {{CVD}} --strip-components=0
     else
-        echo "cvd 已存在，无需下载。"
+        echo "{{CVD}}/bin/adb 和 {{CVD}}/bin/cvd 已存在，无需下载。"
     fi
 
 # 下载安卓GSI镜像
 gsi:
     #!/usr/bin/env bash
     set -e
+    mkdir -p {{DEPS}} {{CVD}}
     arch=$(uname -m)
-    imgs=(super.img boot.img)
-    missing=()
-    for img in "${imgs[@]}"; do
-        if [ ! -f "$img" ]; then
-            missing+=("$img")
-        fi
-    done
-    if [ ${#missing[@]} -eq 0 ]; then
-        echo "所有 img 文件已存在: ${imgs[*]}"
-        exit 0
-    fi
-    # 选择 zip 文件名和下载地址
     if [[ "$arch" == "aarch64" ]]; then
-        zipfile="aosp_cf_arm64_phone-img-13823094.zip"
+        zipfile="{{DEPS}}/aosp_cf_arm64_phone-img-13823094.zip"
+        zipname="aosp_cf_arm64_phone-img-13823094.zip"
     elif [[ "$arch" == "x86_64" ]]; then
-        zipfile="aosp_cf_x86_64_phone-img-13823094.zip"
+        zipfile="{{DEPS}}/aosp_cf_x86_64_phone-img-13823094.zip"
+        zipname="aosp_cf_x86_64_phone-img-13823094.zip"
     else
         echo "不支持的架构: $arch"; exit 1
     fi
-    url="https://github.com/feicong/feicong-course/releases/download/android-course/$zipfile"
+    url="https://github.com/feicong/feicong-course/releases/download/android-course/$zipname"
     # 检查本地 zip 文件
     if [ ! -f "$zipfile" ]; then
         echo "$zipfile 不存在，正在下载..."
         wget -O "$zipfile" "$url"
     fi
-    # 检查解压工具
-    if ! command -v 7z &>/dev/null; then
-        echo "未检测到 7z，请先安装：sudo apt-get install p7zip-full"; exit 1
-    fi
-    # 解压缺失的 img 文件
-    for img in "${missing[@]}"; do
-        echo "正在从 $zipfile 解压 $img ..."
-        7z e "$zipfile" "$img"
+    # 获取所有 img 文件名
+    img_list=$(7z l "$zipfile" | awk '/\.img$/ {print $NF}')
+    for img in $img_list; do
+        if [ ! -f "{{CVD}}/$img" ]; then
+            echo "正在从 $zipfile 解压 $img 到 {{CVD}}/ ..."
+            7z e "$zipfile" "$img" -o{{CVD}}
+        else
+            echo "{{CVD}}/$img 已存在，跳过。"
+        fi
     done
-    echo "img 文件已准备好: ${imgs[*]}"
+    echo "所有 img 文件已准备好。"
 
 # 检查并安装cuttlefish所需环境
 cuttlefish:
@@ -109,9 +105,6 @@ cuttlefish:
                 echo "$pkg_arm64 不存在，正在下载..."
                 wget -O "$pkg_arm64" "$url_arm64"
             fi
-            if ! command -v 7z &>/dev/null; then
-                echo "未检测到 7z，请先安装：sudo apt-get install p7zip-full"; exit 1
-            fi
             echo "解压 $pkg_arm64"
             7z x "$pkg_arm64"
         elif [[ "$arch" == "x86_64" ]]; then
@@ -119,16 +112,13 @@ cuttlefish:
                 echo "$pkg_x86_64 不存在，正在下载..."
                 wget -O "$pkg_x86_64" "$url_x86_64"
             fi
-            if ! command -v unzip &>/dev/null; then
-                echo "未检测到 unzip，请先安装：sudo apt-get install unzip"; exit 1
-            fi
             echo "解压 $pkg_x86_64"
             unzip "$pkg_x86_64"
         else
             echo "不支持的架构: $arch"
             exit 1
         fi
-        # 安装 deb 包
+        echo "安装 deb 包"
         sudo dpkg -i ./cuttlefish-base_*_*64.deb || sudo apt-get install -f -y
         sudo dpkg -i ./cuttlefish-user_*_*64.deb || sudo apt-get install -f -y
     else
@@ -139,19 +129,27 @@ cuttlefish:
     if ! getent group cvdnetwork &>/dev/null; then
         echo "cvdnetwork 用户组不存在，正在添加"
         sudo groupadd cvdnetwork
+        # 添加用户到相关组
+        sudo usermod -aG kvm,cvdnetwork,render $USER
+        echo "请执行 sudo reboot 以使更改生效"
     else
         echo "cvdnetwork 用户组已存在"
     fi
 
-    # 添加用户到相关组
-    sudo usermod -aG kvm,cvdnetwork,render $USER
-    
-    echo "请执行 sudo reboot 以使更改生效"
-
 # 启动 cvd（待实现）
 start:
-    echo "启动 cvd 功能待实现"
+    echo "启动 cvd"
+    cvd/bin/cvd start
 
-# 停止 cvd（待实现）
+# 停止 cvd
 stop:
-    echo "停止 cvd 功能待实现"
+    #!/usr/bin/env bash
+    set -e
+    echo "检查是否有在线设备..."
+    online=$(./{{CVD}}/bin/adb devices | awk '/\tdevice$/ {print $1}')
+    if [ -n "$online" ]; then
+        echo "检测到在线设备: $online，执行 stop_cvd"
+        HOME=$PWD ./{{CVD}}/bin/stop_cvd
+    else
+        echo "无在线设备，无需停止。"
+    fi

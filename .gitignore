@@ -3,3 +3,5 @@
 *.zip
 *.tar.gz
 *.7z
+cvd/
+deps/
