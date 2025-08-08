@@ -136,10 +136,10 @@ cuttlefish:
         echo "cvdnetwork 用户组已存在"
     fi
 
-# 启动 cvd（待实现）
+# 启动 cvd
 start:
     echo "启动 cvd"
-    cvd/bin/cvd start
+    HOME=$PWD cvd/bin/cvd start --daemon
 
 # 停止 cvd
 stop:
