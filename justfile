@@ -132,8 +132,10 @@ cuttlefish:
 
 # 启动 cvd
 start: cuttlefish cvd gsi
+    #!/usr/bin/env bash
+    set -e
     echo "启动 cvd"
-    HOME=$PWD cvd/bin/cvd start --daemon
+    cd {{CVD}} && HOME=$PWD bin/launch_cvd -vm_manager qemu_cli -report_anonymous_usage_stats=n -enable_audio=false --start_webrtc=false -daemon && cd ..
 
 # 停止 cvd
 stop:
@@ -143,7 +145,7 @@ stop:
     online=$(./{{CVD}}/bin/adb devices | awk '/\tdevice$/ {print $1}')
     if [ -n "$online" ]; then
         echo "检测到在线设备: $online，执行 stop_cvd"
-        HOME=$PWD ./{{CVD}}/bin/stop_cvd
+        cd {{CVD}} && HOME=$PWD bin/stop_cvd && cd ..
     else
         echo "无在线设备，无需停止。"
     fi
