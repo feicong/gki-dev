@@ -135,7 +135,8 @@ start: cuttlefish cvd gsi
     #!/usr/bin/env bash
     set -e
     echo "启动 cvd"
-    cd {{CVD}} && HOME=$PWD bin/launch_cvd -vm_manager qemu_cli -report_anonymous_usage_stats=n -enable_audio=false --start_webrtc=false -daemon && cd ..
+    # cd {{CVD}} && HOME=$PWD bin/launch_cvd -vm_manager qemu_cli -report_anonymous_usage_stats=n -enable_audio=false --start_webrtc=false -daemon && cd ..
+    cd {{CVD}} && HOME=$PWD bin/launch_cvd -report_anonymous_usage_stats=n -daemon && cd ..
 
 # 停止 cvd
 stop:
