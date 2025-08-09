@@ -173,4 +173,4 @@ debug-kernel:
 attach-cvd:
     #!/usr/bin/env bash
     set -e
-    gdb ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/vmlinux -ex "target remote :1234" -ex "hbreak start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
+    gdb ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/vmlinux -ex "target remote :1234" -ex "break start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
