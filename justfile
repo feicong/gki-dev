@@ -150,3 +150,27 @@ stop:
     else
         echo "无在线设备，无需停止。"
     fi
+
+# 运行CVD指定内核文件
+run-kernel:
+    #!/usr/bin/env bash
+    HOME=$PWD bin/launch_cvd -report_anonymous_usage_stats=n \
+        -kernel_path ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/bzImage \
+        -initramfs_path ../gki-env/android13-5.15-167/bazel-bin/common-modules/virtual-device/virtual_device_x86_64_images_initramfs/initramfs.img \
+        --daemon
+
+# 调试CV内核
+debug-kernel:
+    #!/usr/bin/env bash
+    HOME=$PWD bin/launch_cvd -report_anonymous_usage_stats=n \
+        -kernel_path ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/bzImage \
+        -initramfs_path ../gki-env/android13-5.15-167/bazel-bin/common-modules/virtual-device/virtual_device_x86_64_images_initramfs/initramfs.img \
+        -gdb_port 1234 -cpus=1 \
+        -extra_kernel_cmdline nokaslr \
+        --daemon
+
+# 构建GKI内核
+attach-cvd:
+    #!/usr/bin/env bash
+    set -e
+    gdb ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/vmlinux -ex "target remote :1234" -ex "hbreak start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
