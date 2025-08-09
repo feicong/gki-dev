@@ -94,19 +94,19 @@ cuttlefish:
         url_arm64="https://github.com/feicong/feicong-course/releases/download/android-course/cuttlefish_packages_arm64.7z"
         url_x86_64="https://github.com/feicong/feicong-course/releases/download/android-course/cuttlefish_packages_x86_64.zip"
         if [[ "$arch" == "aarch64" ]]; then
-            if [ ! -f "$pkg_arm64" ]; then
+            if [ ! -f "{{DEPS}}/$pkg_arm64" ]; then
                 echo "$pkg_arm64 不存在，正在下载..."
-                wget -O "$pkg_arm64" "$url_arm64"
+                wget -O "{{DEPS}}/$pkg_arm64" "$url_arm64"
             fi
             echo "解压 $pkg_arm64"
             7z x "$pkg_arm64"
         elif [[ "$arch" == "x86_64" ]]; then
-            if [ ! -f "$pkg_x86_64" ]; then
+            if [ ! -f "{{DEPS}}/$pkg_x86_64" ]; then
                 echo "$pkg_x86_64 不存在，正在下载..."
-                wget -O "$pkg_x86_64" "$url_x86_64"
+                wget -O "{{DEPS}}/$pkg_x86_64" "$url_x86_64"
             fi
             echo "解压 $pkg_x86_64"
-            unzip "$pkg_x86_64"
+            unzip "{{DEPS}}/$pkg_x86_64"
         else
             echo "不支持的架构: $arch"
             exit 1
