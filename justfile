@@ -192,3 +192,9 @@ bootloader:
     #!/usr/bin/env bash
     set -e
     ./{{CVD}}/bin/adb reboot bootloader
+
+# 使用fastboot命令启动指定内核镜像
+boot:
+    #!/usr/bin/env bash
+    set -e
+    fastboot boot ../gki-env/dist/KSU_android13-5.15.167-2024-11-boot.img
