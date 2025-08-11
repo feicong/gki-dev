@@ -174,3 +174,21 @@ attach-cvd:
     #!/usr/bin/env bash
     set -e
     gdb ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/vmlinux -ex "target remote :1234" -ex "hbreak start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
+
+# 列出连接的设备
+devices:
+    #!/usr/bin/env bash
+    set -e
+    ./{{CVD}}/bin/adb devices
+
+# 获取设备内核信息
+uname:
+    #!/usr/bin/env bash
+    set -e
+    ./{{CVD}}/bin/adb shell uname -a
+
+# 重启设备到bootloader模式
+bootloader:
+    #!/usr/bin/env bash
+    set -e
+    ./{{CVD}}/bin/adb reboot bootloader
