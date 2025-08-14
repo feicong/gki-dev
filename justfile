@@ -187,6 +187,12 @@ uname:
     set -e
     ./{{CVD}}/bin/adb shell uname -a
 
+# 进入设备的shell
+shell:
+    #!/usr/bin/env bash
+    set -e
+    ./{{CVD}}/bin/adb shell
+
 # 重启设备到bootloader模式
 bootloader:
     #!/usr/bin/env bash
