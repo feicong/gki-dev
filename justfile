@@ -198,3 +198,105 @@ boot:
     #!/usr/bin/env bash
     set -e
     fastboot boot ../gki-env/dist/KSU_android13-5.15.167-2024-11-boot.img
+
+# Frida 环境管理
+# --------------------------------------------------
+FRIDA_BASE_DIR := "$HOME/.frida_venvs"
+PYTHON_BIN := "python3"
+
+# 创建并安装指定版本的 Frida
+frida-create version:
+    #!/usr/bin/env bash
+    set -e
+    venv_path="{{FRIDA_BASE_DIR}}/frida-{{version}}"
+
+    if [ -d "$venv_path" ]; then
+        echo "虚拟环境 frida-{{version}} 已存在于 $venv_path"
+        exit 0
+    fi
+
+    echo "创建虚拟环境 frida-{{version}} ..."
+    mkdir -p "{{FRIDA_BASE_DIR}}"
+    "{{PYTHON_BIN}}" -m venv "$venv_path"
+    
+    # 在子 shell 中激活环境以安装包
+    source "$venv_path/bin/activate"
+
+    echo "安装 frida=={{version}} ..."
+    pip install --upgrade pip
+    pip install frida=={{version}} frida-tools
+
+    echo "下载 frida-server..."
+    for arch in "arm64" "x86_64"; do
+        server_url="https://github.com/frida/frida/releases/download/{{version}}/frida-server-{{version}}-android-$arch.xz"
+        server_archive="$venv_path/frida-server-{{version}}-android-$arch.xz"
+        server_binary="$venv_path/frida-server-{{version}}-android-$arch"
+        final_name="$venv_path/frida-server-$arch"
+
+        echo "正在下载 $arch 版本的 frida-server..."
+        if ! curl -L "$server_url" -o "$server_archive"; then
+            echo "下载失败: $server_url"
+            continue
+        fi
+
+        echo "正在解压 $arch 版本的 frida-server..."
+        if ! xz -d "$server_archive"; then
+            echo "解压失败: $server_archive"
+            rm -f "$server_archive"
+            continue
+        fi
+
+        mv "$server_binary" "$final_name"
+        chmod a+x "$final_name"
+        echo "$arch 版本的 frida-server 已保存至 $final_name"
+    done
+
+    echo "Frida {{version}} 安装完成。虚拟环境路径：$venv_path"
+    deactivate
+
+# 显示激活 Frida 环境的命令
+frida-activate version:
+    #!/usr/bin/env bash
+    set -e
+    venv_path="{{FRIDA_BASE_DIR}}/frida-{{version}}"
+
+    if [ ! -d "$venv_path" ]; then
+        echo "未找到 frida-{{version}} 虚拟环境，请先创建："
+        echo "  just frida-create {{version}}"
+        exit 1
+    fi
+
+    echo "要激活 frida-{{version}} 环境，请运行以下命令："
+    echo "  source $venv_path/bin/activate"
+
+# 删除 Frida 虚拟环境
+frida-delete version:
+    #!/usr/bin/env bash
+    set -e
+    venv_path="{{FRIDA_BASE_DIR}}/frida-{{version}}"
+
+    if [ ! -d "$venv_path" ]; then
+        echo "未找到 frida-{{version}} 虚拟环境：$venv_path"
+        exit 1
+    fi
+
+    read -p "确认删除 frida-{{version}} 的虚拟环境？[y/N]: " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        rm -rf "$venv_path"
+        echo "已删除虚拟环境：$venv_path"
+    else
+        echo "取消删除操作。"
+    fi
+
+# 列出所有已创建的 Frida 虚拟环境
+frida-list:
+    #!/usr/bin/env bash
+    set -e
+    echo "已有的 frida 虚拟环境："
+    for dir in {{FRIDA_BASE_DIR}}/frida-*; do \
+        if [ -d "$dir" ]; then
+            ver=$(basename "$dir");
+            ver=${ver#frida-};
+            echo "  - $ver (路径: $dir)";
+        fi;
+    done
