@@ -169,7 +169,7 @@ debug-kernel:
         -extra_kernel_cmdline nokaslr \
         --daemon
 
-# 构建GKI内核
+# 连接CVD内核
 attach-cvd:
     #!/usr/bin/env bash
     set -e
