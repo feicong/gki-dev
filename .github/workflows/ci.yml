@@ -1,0 +1,58 @@
+# Copyright (c) 2025-2026 fei_cong(https://github.com/feicong/feicong-course)
+
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+    tags-ignore:
+      - '**'
+    paths-ignore:
+      - 'LICENSE'
+      - '**.md'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install just
+        run: sudo apt-get update && sudo apt-get install -y just
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl \
+            fastboot \
+            gdb \
+            iproute2 \
+            p7zip-full \
+            unzip \
+            wget \
+            xz-utils
+
+      - name: Run CI recipe
+        run: just ci
+
+      - name: Upload metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gki-metadata
+          if-no-files-found: ignore
+          path: |
+            gki/release.env
+            gki/aarch64/boot.img
+            gki/x86_64/bzImage
+            gki/x86_64/boot.img

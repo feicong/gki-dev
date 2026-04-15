@@ -3,6 +3,19 @@
 # 统一目录变量
 DEPS := "deps"
 CVD := "cvd"
+GKI := "gki"
+SCRIPTS := "scripts"
+
+export GKI_ANDROID_VERSION := env_var_or_default("GKI_ANDROID_VERSION", "android13")
+export GKI_KERNEL_VERSION := env_var_or_default("GKI_KERNEL_VERSION", "5.15")
+
+GKI_RELEASE_INFO := GKI + "/release.env"
+GKI_AARCH64_DIR := GKI + "/aarch64"
+GKI_X86_64_DIR := GKI + "/x86_64"
+GKI_BOOT_IMG := GKI_AARCH64_DIR + "/boot.img"
+GKI_X86_BOOT_IMG := GKI_X86_64_DIR + "/boot.img"
+GKI_BZIMAGE := GKI_X86_64_DIR + "/bzImage"
+GKI_VMLINUX := GKI_X86_64_DIR + "/vmlinux"
 
 # 默认命令，列出所有可用命令
 default:
@@ -12,7 +25,7 @@ default:
 doctor:
     #!/usr/bin/env bash
     set -e
-    cmds=(tar wget 7z unzip dpkg apt-get ip getent usermod groupadd)
+    cmds=(tar wget curl 7z unzip xz dpkg apt-get ip getent usermod groupadd gdb fastboot)
     missing=()
     for cmd in "${cmds[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
@@ -25,6 +38,48 @@ doctor:
         echo "缺少如下命令，请手动安装：${missing[*]}"
         exit 1
     fi
+
+# 刷新GKI信息
+gki-release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{GKI}}
+    bash {{SCRIPTS}}/gki-release.sh {{GKI_ANDROID_VERSION}} {{GKI_KERNEL_VERSION}} > {{GKI_RELEASE_INFO}}
+    cat {{GKI_RELEASE_INFO}}
+
+# 下载GKI内核
+gki-kernel: gki-release
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source {{GKI_RELEASE_INFO}}
+    bash {{SCRIPTS}}/ci-android-fetch.sh "$BUILD_ID" "$KERNEL_X86_64_TARGET" "bzImage" "{{GKI_BZIMAGE}}"
+    bash {{SCRIPTS}}/ci-android-fetch.sh "$BUILD_ID" "$KERNEL_X86_64_TARGET" "vmlinux" "{{GKI_VMLINUX}}"
+    bash {{SCRIPTS}}/ci-android-fetch.sh "$BUILD_ID" "$KERNEL_X86_64_TARGET" "boot.img" "{{GKI_X86_BOOT_IMG}}"
+
+# 下载启动镜像
+gki-boot: gki-release
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source {{GKI_RELEASE_INFO}}
+    mkdir -p {{DEPS}} {{GKI_AARCH64_DIR}}
+    zipfile="{{DEPS}}/$(basename "$BOOT_ZIP_URL")"
+    if [ ! -f "$zipfile" ]; then
+        wget -O "$zipfile" "$BOOT_ZIP_URL"
+    fi
+    boot_name="$(unzip -Z -1 "$zipfile" | grep -E '^boot[^/]*\.img$' | head -n1)"
+    if [ -z "$boot_name" ]; then
+        echo "未在 $zipfile 中找到 boot 镜像"
+        exit 1
+    fi
+    unzip -o "$zipfile" "$boot_name" -d {{GKI_AARCH64_DIR}} >/dev/null
+    if [ "$boot_name" != "boot.img" ]; then
+        mv -f "{{GKI_AARCH64_DIR}}/$boot_name" "{{GKI_BOOT_IMG}}"
+    fi
+    test -f "{{GKI_BOOT_IMG}}"
+
+# 准备GKI产物
+gki: gki-kernel gki-boot
+    @echo "GKI 内核产物已准备完毕。"
 
 # 下载CVD镜像
 cvd:
@@ -84,7 +139,8 @@ gsi:
 # 检查并安装cuttlefish所需环境
 cuttlefish:
     #!/usr/bin/env bash
-    set -e
+    set -euo pipefail
+    mkdir -p {{DEPS}}
     # 检查 cvd-ebr 网络接口
     if ! ip link show cvd-ebr &>/dev/null; then
         echo "cvd-ebr 网络接口不存在"
@@ -99,14 +155,14 @@ cuttlefish:
                 wget -O "{{DEPS}}/$pkg_arm64" "$url_arm64"
             fi
             echo "解压 $pkg_arm64"
-            7z x "$pkg_arm64"
+            7z x "{{DEPS}}/$pkg_arm64"
         elif [[ "$arch" == "x86_64" ]]; then
             if [ ! -f "{{DEPS}}/$pkg_x86_64" ]; then
                 echo "$pkg_x86_64 不存在，正在下载..."
                 wget -O "{{DEPS}}/$pkg_x86_64" "$url_x86_64"
             fi
             echo "解压 $pkg_x86_64"
-            unzip "{{DEPS}}/$pkg_x86_64"
+            unzip -n -o "{{DEPS}}/$pkg_x86_64"
         else
             echo "不支持的架构: $arch"
             exit 1
@@ -123,11 +179,25 @@ cuttlefish:
     if ! getent group cvdnetwork &>/dev/null; then
         echo "cvdnetwork 用户组不存在，正在添加"
         sudo groupadd cvdnetwork
-        # 添加用户到相关组
-        sudo usermod -aG kvm,cvdnetwork,render $USER
-        echo "请执行 sudo reboot 以使更改生效"
     else
         echo "cvdnetwork 用户组已存在"
+    fi
+
+    # 添加用户到相关组
+    join_groups=("cvdnetwork")
+    if getent group kvm &>/dev/null; then
+        join_groups+=("kvm")
+    fi
+    if getent group render &>/dev/null; then
+        join_groups+=("render")
+    fi
+    group_list="$(IFS=,; echo "${join_groups[*]}")"
+    if id -nG "$USER" | tr ' ' '\n' | grep -qx "cvdnetwork"; then
+        echo "$USER 已加入 $group_list"
+    else
+        sudo usermod -aG "$group_list" "$USER"
+        echo "已将 $USER 加入 $group_list"
+        echo "如需当前 shell 立即生效，请重新登录后再启动 CVD。"
     fi
 
 # 启动 cvd
@@ -151,29 +221,29 @@ stop:
         echo "无在线设备，无需停止。"
     fi
 
-# 运行CVD指定内核文件
-run-kernel:
+# 运行本地内核
+run-kernel: cvd gsi gki-kernel
     #!/usr/bin/env bash
+    set -e
     cd {{CVD}} && HOME=$PWD bin/launch_cvd -report_anonymous_usage_stats=n \
-        -kernel_path ../../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/bzImage \
-        -initramfs_path ../../gki-env/android13-5.15-167/bazel-bin/common-modules/virtual-device/virtual_device_x86_64_images_initramfs/initramfs.img \
+        -kernel_path ../{{GKI_BZIMAGE}} \
         --daemon
 
-# 调试CV内核
-debug-kernel:
+# 调试本地内核
+debug-kernel: cvd gsi gki-kernel
     #!/usr/bin/env bash
+    set -e
     cd {{CVD}} && HOME=$PWD bin/launch_cvd -report_anonymous_usage_stats=n \
-        -kernel_path ../../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/bzImage \
-        -initramfs_path ../../gki-env/android13-5.15-167/bazel-bin/common-modules/virtual-device/virtual_device_x86_64_images_initramfs/initramfs.img \
+        -kernel_path ../{{GKI_BZIMAGE}} \
         -gdb_port 1234 -cpus=1 \
         -extra_kernel_cmdline nokaslr \
         --daemon
 
 # 连接CVD内核
-attach-cvd:
+attach-cvd: gki-kernel
     #!/usr/bin/env bash
     set -e
-    gdb ../gki-env/android13-5.15-167/bazel-bin/common/kernel_x86_64/vmlinux -ex "target remote :1234" -ex "hbreak start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
+    gdb {{GKI_VMLINUX}} -ex "target remote :1234" -ex "hbreak start_kernel" -ex "set pagination off" -ex "bt" -ex "continue"
 
 # 列出连接的设备
 devices:
@@ -200,10 +270,27 @@ bootloader:
     ./{{CVD}}/bin/adb reboot bootloader
 
 # 使用fastboot命令启动指定内核镜像
-boot:
+boot: gki-boot
     #!/usr/bin/env bash
     set -e
-    fastboot boot ../gki-env/dist/KSU_android13-5.15.167-2024-11-boot.img
+    fastboot boot {{GKI_BOOT_IMG}}
+
+# 准备全部环境
+prepare-env: doctor cuttlefish cvd gsi gki
+    @echo "全部环境已安装并完成本地配置。"
+
+# 校验CI环境
+ci: prepare-env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -f "{{CVD}}/bin/adb"
+    test -f "{{CVD}}/bin/cvd"
+    test -f "{{GKI_RELEASE_INFO}}"
+    test -f "{{GKI_BZIMAGE}}"
+    test -f "{{GKI_VMLINUX}}"
+    test -f "{{GKI_X86_BOOT_IMG}}"
+    test -f "{{GKI_BOOT_IMG}}"
+    echo "CI 环境校验通过。"
 
 # Frida 环境管理
 # --------------------------------------------------
