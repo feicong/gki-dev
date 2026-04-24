@@ -44,7 +44,11 @@ gki-release:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p {{GKI}}
-    bash {{SCRIPTS}}/gki-release.sh {{GKI_ANDROID_VERSION}} {{GKI_KERNEL_VERSION}} > {{GKI_RELEASE_INFO}}
+    tmp_release="$(mktemp "{{GKI_RELEASE_INFO}}.XXXXXX")"
+    trap 'rm -f "$tmp_release"' EXIT
+    bash {{SCRIPTS}}/gki-release.sh {{GKI_ANDROID_VERSION}} {{GKI_KERNEL_VERSION}} > "$tmp_release"
+    mv -f "$tmp_release" {{GKI_RELEASE_INFO}}
+    trap - EXIT
     cat {{GKI_RELEASE_INFO}}
 
 # 下载GKI内核
@@ -66,7 +70,7 @@ gki-boot: gki-release
     if [ ! -f "$zipfile" ]; then
         wget -O "$zipfile" "$BOOT_ZIP_URL"
     fi
-    boot_name="$(unzip -Z -1 "$zipfile" | grep -E '^boot[^/]*\.img$' | head -n1)"
+    boot_name="$(unzip -Z -1 "$zipfile" | grep -E '^boot[^/]*\.img$' | head -n1 || true)"
     if [ -z "$boot_name" ]; then
         echo "未在 $zipfile 中找到 boot 镜像"
         exit 1

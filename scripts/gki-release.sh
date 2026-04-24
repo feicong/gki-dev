@@ -18,9 +18,10 @@ trap cleanup EXIT
 
 curl -fsSL "$release_url" -o "$page_file"
 
-branch_regex="${android_version}-${kernel_version}-[0-9]{4}-[0-9]{2}"
+kernel_regex="${kernel_version//./\\.}"
+branch_regex="${android_version}-${kernel_regex}-[0-9]{4}-[0-9]{2}"
 start_line="$(
-	grep -n -m1 "Branch: .*${android_version}-${kernel_version}-" "$page_file" | cut -d: -f1 || true
+	grep -n -m1 -E "Branch: .*${android_version}-${kernel_regex}-" "$page_file" | cut -d: -f1 || true
 )"
 
 if [[ -z "${start_line}" ]]; then
